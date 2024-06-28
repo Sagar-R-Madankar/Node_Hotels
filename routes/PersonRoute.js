@@ -2,10 +2,11 @@ const express=require('express');
 const router=express.Router();
 
 const Person=require('../Models/person');
+const {jwtAuthMiddleware,generatetoken}=require('../Jwt');
 
 //Post route to send data
 
-router.post('/',async(req,res) =>{
+router.post('/signup',async(req,res) =>{
 
     try {
         //Creating a newperson document using Person Model
@@ -17,13 +18,49 @@ router.post('/',async(req,res) =>{
         
         const response= await newPerson.save();
         console.log("Data Saved");
-        res.status(200).json(response);
+
+        const token=generatetoken(response.username);
+        console.log("Token is :",token);
+        res.status(200).json({response : response, token : token});
 
 
     } catch (err) {
         console.log(err);
         res.status(500).json({error:'Internal Server Error'}); 
     }
+})
+
+//Login Route
+router.post('/login',async (req ,res)=>{
+  try{
+       // Extract the username and password
+
+    const {username,password}=req.body;
+
+    //Find the user by username
+
+    const user= await Person.findOne({username : username});
+
+    if(!user || !(await user.ComparePassword(password))){
+        return res.status(401).json({error:"Invalid username or password"});
+    }
+   //Generate token
+   const payload={
+    id: user.id,
+    username: user.username
+   }
+  const token =generatetoken(payload);
+
+  //return token as respond
+  res.json({token});
+  }catch(err){
+    console.log(err);
+    res.status(500).json({error : "Internal Server Error"});
+  }
+   
+
+
+    
 })
 
 // Get data of person 
@@ -39,6 +76,22 @@ router.get('/',async (req,res)=>{
     }
  })
  
+
+ // Profile Route
+ router.get('/profile',jwtAuthMiddleware,async (req,res)=>{
+      try {
+        const userData= req.user;
+        console.log("User Data",userData);
+
+        const userid=userData.id;
+        const users= await Person.findById(userid);
+
+        res.status(200).json({users});
+      } catch (err) {
+        console.log(err);
+        res.status(500).json({error : "Internal Server Error"});
+      }
+ })
  
 router.get('/:worktype', async (req,res)=>{
     try {
